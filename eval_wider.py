@@ -11,41 +11,7 @@ from models.experimental import attempt_load
 from utils.datasets import letterbox
 from utils.general import check_img_size, non_max_suppression, scale_coords, set_logging, xywh2xyxy
 from utils.torch_utils import select_device
-
-def inverted_nms(det, iou_thres):
-    zero_index = np.where((det[:,2] <= det[:,0]) | (det[:,3] <= det[:,1]))[0]
-    det[zero_index,:] = 0
-
-    order = det[:, 4].ravel().argsort()
-    det = det[order, :]
-
-    area = (det[:, 2] - det[:, 0]) * (det[:, 3] - det[:, 1])
-
-    for i in range(len(det)-1):
-        boxes = det[0:i+1]
-        
-        xx1 = np.maximum(det[i+1, 0], boxes[:, 0])
-        yy1 = np.maximum(det[i+1, 1], boxes[:, 1])
-        xx2 = np.minimum(det[i+1, 2], boxes[:, 2])
-        yy2 = np.minimum(det[i+1, 3], boxes[:, 3])
-        w = np.maximum(0.0, xx2 - xx1)
-        h = np.maximum(0.0, yy2 - yy1)
-        inter = w * h
-        o = inter / (area[i+1] + area[0:i+1] - inter)
-        # get needed merge det and delete these det
-        iou = np.where(o > iou_thres)[0]
-        if len(iou)==0:
-            continue
-        det_accu = det[iou,:]
-        det_accu = np.row_stack((det_accu, det[i+1]))
-        det[iou,:] = 0
-
-        det_accu[:, 0:4] = det_accu[:, 0:4] * np.tile(det_accu[:, -1:], (1, 4))
-        det[i+1, 0:4] = np.sum(det_accu[:, 0:4], axis=0) / np.sum(det_accu[:, -1:])
-
-    index = np.where((det[:,4] != 0))
-
-    return det[index]
+from inverted_nms import inverted_nms
 
 def detect(model, img, im0s, opt, flip=False):
     img = torch.from_numpy(img).to(device)

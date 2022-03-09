@@ -7,13 +7,14 @@ import torch
 
 from models.experimental import attempt_load
 from utils.datasets import letterbox
-from utils.general import check_img_size, non_max_suppression, scale_coords
+from utils.general import check_img_size, non_max_suppression, xywh2xyxy, scale_coords
 from utils.torch_utils import select_device
+from inverted_nms import inverted_nms
 
 
 def detect(model, img, im0s, opt, flip=False):
     img = torch.from_numpy(img).to(device)
-    img = img.half() if opt.half else img.float()  # uint8 to fp16/32
+    img = img.float()  # uint8 to fp32
     img /= 255.0  # 0 - 255 to 0.0 - 1.0
     if img.ndimension() == 3:
         img = img.unsqueeze(0)
@@ -25,26 +26,31 @@ def detect(model, img, im0s, opt, flip=False):
         pred[:,:,0] = img.shape[3] - pred[:,:,0] - 1
 
     length = pred.shape[1]
-    size_min = int(length/85)
+    size_min = int(length/21)
 
     pred1=[]
-    pred1.append(pred[:,0:size_min*64])
-    pred1.append(pred[:,size_min*64:size_min*80])
-    pred1.append(pred[:,size_min*80:size_min*84])
-    pred1.append(pred[:,size_min*84:size_min*85])
+    pred1.append(pred[:,0:size_min*16])
+    pred1.append(pred[:,size_min*16:size_min*20])
+    pred1.append(pred[:,size_min*20:size_min*21])
 
     boxes=[]
     for j, pred in enumerate(pred1):
         # Apply NMS
-        pred = non_max_suppression(pred, opt.conf_thres, opt.iou_thres)[0].cpu().numpy()
+        pred = pred[0,:,:5].cpu().numpy()
+        pred[:, :4] = xywh2xyxy(pred[:, :4])
+        pred = pred[pred[:,4]>opt.conf_thres]
+        pred = inverted_nms(pred, opt.iou_thres)
+
+        #pred = non_max_suppression(pred, opt.conf_thres, opt.iou_thres)[0].cpu().numpy()
 
         pred[:, :4] = scale_coords(img.shape[2:], pred[:, :4], im0s.shape)
 
         boxes.append(pred[:, :5])
-
+    
     if len(boxes)==0:
         return np.array([[0,0,0,0,0.001]])
-    return np.concatenate(boxes)
+
+    return inverted_nms(np.concatenate(boxes), opt.iou_thres)
 
 def load_image(path, stride, flip=False, shrink=1):
     # Read image
@@ -108,8 +114,7 @@ if __name__ == '__main__':
     parser.add_argument('--image-path', type=str, default='D:/WIDER_FACE/WIDER_test/images/11--Meeting/11_Meeting_Meeting_11_Meeting_Meeting_11_280.jpg', help='image')  # file/folder, 0 for webcam
     parser.add_argument('--conf-thres', type=float, default=0.001, help='object confidence threshold')
     parser.add_argument('--iou-thres', type=float, default=0.6, help='IOU threshold for NMS')
-    parser.add_argument('--device', default='1', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
-    parser.add_argument('--half', action='store_true', help='use FP16 half-precision inference')
+    parser.add_argument('--device', default='0', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     opt = parser.parse_args()
     print(opt)
 
@@ -121,8 +126,6 @@ if __name__ == '__main__':
     # Load model
     model = attempt_load(weights, map_location=device)  # load FP32 model
     stride = int(model.stride.max())  # model stride
-    if opt.half:
-        model.half()  # to FP16
 
     # Run inference
     if device.type != 'cpu':
@@ -131,10 +134,9 @@ if __name__ == '__main__':
     with torch.no_grad():
         img, img0 = load_image(image_path, stride, False)
         preds = detect(model, img, img0, opt, False)
-        preds = bbox_vote(preds).astype(np.float32)
 
         for pred in preds:
-            if pred[4]>0.2:
+            if pred[4]>0.5:
                 pred = np.round(pred).astype(np.int32)
                 cv2.rectangle(img0, (pred[0], pred[1]), (pred[2], pred[3]), (0,255,0), 2)
         #cv2.imwrite('widerimage.png', img0)

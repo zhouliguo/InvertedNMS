@@ -110,7 +110,7 @@ def bbox_vote(det):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--weights', nargs='+', type=str, default='D:/yolobest1.33-1.25.pt', help='model.pt path(s)')
+    parser.add_argument('--weights', nargs='+', type=str, default='D:/face_yolov5x.pt', help='model.pt path(s)')
     parser.add_argument('--image-path', type=str, default='D:/WIDER_FACE/WIDER_test/images/11--Meeting/11_Meeting_Meeting_11_Meeting_Meeting_11_280.jpg', help='image')  # file/folder, 0 for webcam
     parser.add_argument('--conf-thres', type=float, default=0.001, help='object confidence threshold')
     parser.add_argument('--iou-thres', type=float, default=0.6, help='IOU threshold for NMS')

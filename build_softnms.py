@@ -1,3 +1,5 @@
+#python build_softnms.py build_ext --inplace
+
 import sys
 import numpy as np
 #A=sys.path.insert(0, "..")

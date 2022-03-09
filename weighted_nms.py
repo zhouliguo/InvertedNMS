@@ -1,6 +1,6 @@
 import numpy as np
 
-def nms(det, iou_thres):
+def weighted_nms(det, iou_thres):
     zero_index = np.where((det[:,2] <= det[:,0]) | (det[:,3] <= det[:,1]))[0]
     det = np.delete(det, zero_index, 0)
 

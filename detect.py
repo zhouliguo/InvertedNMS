@@ -10,6 +10,8 @@ from utils.datasets import letterbox
 from utils.general import check_img_size, non_max_suppression, xywh2xyxy, scale_coords
 from utils.torch_utils import select_device
 from inverted_nms import inverted_nms
+from nms import nms
+from weighted_nms import weighted_nms
 
 
 def detect(model, img, im0s, opt, flip=False):
@@ -47,10 +49,12 @@ def detect(model, img, im0s, opt, flip=False):
 
         boxes.append(pred[:, :5])
     
-    if len(boxes)==0:
-        return np.array([[0,0,0,0,0.001]])
+    boxes = inverted_nms(np.concatenate(boxes), opt.iou_thres)
 
-    return inverted_nms(np.concatenate(boxes), opt.iou_thres)
+    if len(boxes)==0:
+        boxes = np.array([[0,0,0,0,0.001]])
+
+    return boxes
 
 def load_image(path, stride, flip=False, shrink=1):
     # Read image
@@ -111,7 +115,7 @@ def bbox_vote(det):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--weights', nargs='+', type=str, default='D:/face_yolov5x.pt', help='model.pt path(s)')
-    parser.add_argument('--image-path', type=str, default='D:/WIDER_FACE/WIDER_test/images/11--Meeting/11_Meeting_Meeting_11_Meeting_Meeting_11_280.jpg', help='image')  # file/folder, 0 for webcam
+    parser.add_argument('--image-path', type=str, default='figures/face_image.jpg', help='image')  # file/folder, 0 for webcam
     parser.add_argument('--conf-thres', type=float, default=0.001, help='object confidence threshold')
     parser.add_argument('--iou-thres', type=float, default=0.6, help='IOU threshold for NMS')
     parser.add_argument('--device', default='0', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')

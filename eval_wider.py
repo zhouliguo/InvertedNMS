@@ -21,25 +21,21 @@ def detect(model, img, im0s, opt, flip=False):
         img = img.unsqueeze(0)
 
     # Inference
-    if not opt.multi_scale:
-        start = time.time()
+    start = time.time()
 
     pred = model(img)[0]
 
-    if not opt.multi_scale:
-        forward_time = time.time() - start
+    forward_time = time.time() - start
 
     length = pred.shape[1]
-    size_min = int(length/85)
+    size_min = int(length/21)
 
-    if not opt.multi_scale:
-        start = time.time()
+    start = time.time()
 
     pred1=[]
-    pred1.append(pred[:,0:size_min*64])
-    pred1.append(pred[:,size_min*64:size_min*80])
-    pred1.append(pred[:,size_min*80:size_min*84])
-    pred1.append(pred[:,size_min*84:size_min*85])
+    pred1.append(pred[:,0:size_min*16])
+    pred1.append(pred[:,size_min*16:size_min*20])
+    pred1.append(pred[:,size_min*20:size_min*21])
 
     boxes=[]
     for j, pred in enumerate(pred1):
@@ -59,18 +55,14 @@ def detect(model, img, im0s, opt, flip=False):
 
         boxes.append(pred[:, :5])
 
-    if not opt.multi_scale:
-        post_time = time.time() - start
+    post_time = time.time() - start
 
-    boxes = np.concatenate(boxes)
+    boxes = inverted_nms(np.concatenate(boxes), opt.iou_thres)
 
-    if len(boxes) == 0:
+    if len(boxes)==0:
         boxes = np.array([[0,0,0,0,0.001]])
     
-    if opt.multi_scale:
-        return boxes
-    else:
-        return boxes, forward_time, post_time
+    return boxes, forward_time, post_time
 
 def load_image(path, stride, flip=False, shrink=1):
     # Read image
@@ -108,12 +100,12 @@ def write_txt(path, preds):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--weights', nargs='+', type=str, default='D:/best1.33-1-val.pt', help='model.pt path(s)')
+    parser.add_argument('--weights', nargs='+', type=str, default='D:/face_yolov5x.pt', help='model.pt path(s)')
     parser.add_argument('--source', type=str, default='D:/WIDER_FACE/WIDER_val/images/', help='source')
     parser.add_argument('--conf-thres', type=float, default=0.001, help='object confidence threshold')
     parser.add_argument('--iou-thres', type=float, default=0.6, help='IOU threshold for NMS')
     parser.add_argument('--device', default='0', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
-    parser.add_argument('--save-path', default='D:/WIDER_FACE/val_results/val1.33-1/', help='save path')
+    parser.add_argument('--save-path', default='val_results/face_yolov5x/', help='save path')
 
     opt = parser.parse_args()
     print(opt)
@@ -146,8 +138,6 @@ if __name__ == '__main__':
             im_sum = im_sum+1
 
             img = cv2.imread(path)
-            max_im_shrink = (0x7fffffff / 200.0 / (img.shape[0] * img.shape[1])) ** 0.5 # the max size of input image for caffe
-            max_im_shrink = 3 if max_im_shrink > 3 else max_im_shrink
 
             with torch.no_grad():
                 img, img0 = load_image(path, stride)
@@ -156,7 +146,6 @@ if __name__ == '__main__':
                 pt_sum = pt_sum+preds[2]
                 preds = preds[0]
                 start = time.time()
-                preds = inverted_nms(preds, opt.iou_thres)
                 pt_sum = pt_sum+time.time()-start
                 
                 preds[:,2] = preds[:,2]-preds[:,0]
